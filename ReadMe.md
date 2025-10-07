@@ -235,7 +235,7 @@ Hello everyone!
 
 **Carita Ndibe**
 Software Developer passionate about building real-world systems in C, Python, and JavaScript.
-This project was built as part of my exploration into **network programming** and **multithreaded system design**.
+This project was built as part of my exploration into **network programming** and **multithreaded system design** with **CS50**.
 
 ---
 
