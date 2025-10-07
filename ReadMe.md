@@ -1,7 +1,5 @@
-Absolutely! Here’s your **updated README in proper Markdown format**, ready to use:
-
-````markdown
 # Terminal Chat Application in C
+#### Video Demo: https://youtu.be/ASZGoaYNF1c?si=viI_W-ZyUOByQfcF
 
 A **multi-client terminal-based chat application** written in C.  
 Supports **nicknames, private messages, commands, chat logging, and color-coded messages**.
