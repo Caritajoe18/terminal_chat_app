@@ -1,0 +1,26 @@
+# Compiled binaries
+server
+client
+chat_app        # if you have a single executable build
+
+# Object files
+*.o
+
+# Temporary files
+*~
+*.swp
+*.tmp
+
+# Logs (optional)
+chat_history.txt
+
+# IDE / editor files
+.vscode/
+.idea/
+*.code-workspace
+
+# MacOS specific
+.DS_Store
+
+# Linux temp files
+*.out
