@@ -48,13 +48,16 @@ void broadcast(char *message, int sender_socket)
  */
 void send_private(char *message, char *target_name, int sender_socket)
 {
+    (void)sender_socket; // prevent unused-parameter warning
+
     pthread_mutex_lock(&clients_mutex);
     for (int i = 0; i < client_count; i++)
     {
         if (strcmp(clients[i].name, target_name) == 0)
         {
             send(clients[i].socket, message, strlen(message), 0);
-            break;
+            pthread_mutex_unlock(&clients_mutex);
+            return;
         }
     }
     pthread_mutex_unlock(&clients_mutex);
@@ -68,7 +71,7 @@ void log_message(char *message)
     FILE *fp = fopen("chat_history.txt", "a");
     if (fp != NULL)
     {
-        fprintf(fp, "%s\n", message); // add newline explicitly
+        fprintf(fp, "%s\n", message);
         fclose(fp);
     }
 }
@@ -104,15 +107,12 @@ int handle_command(char *command, int client_socket)
 void *handle_client(void *arg)
 {
     int client_socket = *(int *)arg;
-    free(arg); // free the malloc'd socket pointer
+    free(arg);
 
     char buffer[BUFFER_SIZE];
     char name[NAME_LEN];
 
-    // Ask client for nickname
     send(client_socket, "Enter your nickname: ", strlen("Enter your nickname: "), 0);
-
-    // Reserve one byte for the terminating NUL
     int bytes = recv(client_socket, name, NAME_LEN - 1, 0);
     if (bytes <= 0)
     {
@@ -120,48 +120,40 @@ void *handle_client(void *arg)
         return NULL;
     }
 
-    // Null-terminate properly
     name[bytes] = '\0';
-
     size_t nlen = strlen(name);
     if (nlen > 0 && (name[nlen - 1] == '\n' || name[nlen - 1] == '\r'))
-    {
         name[nlen - 1] = '\0';
-    }
 
-    // Add client to array
     pthread_mutex_lock(&clients_mutex);
     clients[client_count].socket = client_socket;
-    strncpy(clients[client_count].name, name, NAME_LEN);
+    strncpy(clients[client_count].name, name, NAME_LEN - 1);
+    clients[client_count].name[NAME_LEN - 1] = '\0';
     client_count++;
     pthread_mutex_unlock(&clients_mutex);
 
-    // Notify others
     char join_msg[BUFFER_SIZE];
     snprintf(join_msg, sizeof(join_msg), COLOR_GREEN "%s has joined the chat!" COLOR_RESET, name);
     broadcast(join_msg, client_socket);
     log_message(join_msg);
     printf("%s joined.\n", name);
 
-    // Receive messages
     while (1)
     {
-        int bytes_received = recv(client_socket, buffer, sizeof(buffer), 0);
+        int bytes_received = recv(client_socket, buffer, sizeof(buffer) - 1, 0);
         if (bytes_received <= 0)
             break;
 
         buffer[bytes_received] = '\0';
 
-        // Check if message is a command
         if (buffer[0] == '/')
         {
             int result = handle_command(buffer, client_socket);
             if (result == -1)
-                break; // /quit
+                break;
             continue;
         }
 
-        // Check if message is private (@username message)
         if (buffer[0] == '@')
         {
             char target[NAME_LEN];
@@ -169,7 +161,7 @@ void *handle_client(void *arg)
             char *msg_body = strchr(buffer, ' ');
             if (msg_body)
             {
-                char pm[BUFFER_SIZE];
+                char pm[BUFFER_SIZE * 2];
                 snprintf(pm, sizeof(pm), COLOR_BLUE "[PM from %s]: %s" COLOR_RESET, name, msg_body + 1);
                 send_private(pm, target, client_socket);
                 log_message(pm);
@@ -177,21 +169,19 @@ void *handle_client(void *arg)
         }
         else
         {
-            // Broadcast normal message
-            char msg[BUFFER_SIZE];
+            char msg[BUFFER_SIZE * 2];
             snprintf(msg, sizeof(msg), COLOR_BLUE "%s: %s" COLOR_RESET, name, buffer);
             broadcast(msg, client_socket);
             log_message(msg);
         }
     }
 
-    // Remove client
     pthread_mutex_lock(&clients_mutex);
     for (int i = 0; i < client_count; i++)
     {
         if (clients[i].socket == client_socket)
         {
-            clients[i] = clients[client_count - 1]; // replace with last client
+            clients[i] = clients[client_count - 1];
             client_count--;
             break;
         }
@@ -212,7 +202,6 @@ int main()
     struct sockaddr_in server_addr, client_addr;
     socklen_t addr_len = sizeof(client_addr);
 
-    // Create TCP socket
     server_socket = socket(AF_INET, SOCK_STREAM, 0);
     if (server_socket < 0)
     {
@@ -220,10 +209,9 @@ int main()
         exit(EXIT_FAILURE);
     }
 
-    // Server address setup
     server_addr.sin_family = AF_INET;
-    server_addr.sin_addr.s_addr = INADDR_ANY; //any computer can connect
-    server_addr.sin_port = htons(PORT); 
+    server_addr.sin_addr.s_addr = INADDR_ANY; // any computer can connect
+    server_addr.sin_port = htons(PORT);
 
     if (bind(server_socket, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0)
     {
@@ -250,7 +238,6 @@ int main()
             continue;
         }
 
-        /* allocate an int on heap so each thread gets its own copy */
         int *pclient = malloc(sizeof(int));
         if (!pclient)
         {
