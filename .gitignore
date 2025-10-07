@@ -1,8 +1,7 @@
 # Compiled binaries
 server
 client
-chat_app        # if you have a single executable build
-
+chat_app  
 # Object files
 *.o
 

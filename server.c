@@ -104,18 +104,30 @@ int handle_command(char *command, int client_socket)
 void *handle_client(void *arg)
 {
     int client_socket = *(int *)arg;
+    free(arg); // free the malloc'd socket pointer
+
     char buffer[BUFFER_SIZE];
     char name[NAME_LEN];
 
     // Ask client for nickname
-    send(client_socket, "Enter your nickname: ", 21, 0);
-    int bytes = recv(client_socket, name, NAME_LEN, 0);
+    send(client_socket, "Enter your nickname: ", strlen("Enter your nickname: "), 0);
+
+    // Reserve one byte for the terminating NUL
+    int bytes = recv(client_socket, name, NAME_LEN - 1, 0);
     if (bytes <= 0)
     {
         close(client_socket);
         return NULL;
     }
-    name[bytes - 1] = '\0'; // remove newline
+
+    // Null-terminate properly
+    name[bytes] = '\0';
+
+    size_t nlen = strlen(name);
+    if (nlen > 0 && (name[nlen - 1] == '\n' || name[nlen - 1] == '\r'))
+    {
+        name[nlen - 1] = '\0';
+    }
 
     // Add client to array
     pthread_mutex_lock(&clients_mutex);
@@ -238,9 +250,18 @@ int main()
             continue;
         }
 
-        // Create thread for new client
+        /* allocate an int on heap so each thread gets its own copy */
+        int *pclient = malloc(sizeof(int));
+        if (!pclient)
+        {
+            perror("malloc");
+            close(new_socket);
+            continue;
+        }
+        *pclient = new_socket;
+
         pthread_t tid;
-        pthread_create(&tid, NULL, handle_client, &new_socket);
+        pthread_create(&tid, NULL, handle_client, pclient);
         pthread_detach(tid);
     }
 
